@@ -12,6 +12,8 @@
     ChevronRight 
   } from 'lucide-react';
   import EmojiPicker from 'emoji-picker-react';
+  import SearchUsers from './SearchUsers';
+
 
   const Chat = () => {
     const [message, setMessage] = useState('');
@@ -213,7 +215,7 @@
               />
             </motion.div>
           </motion.div>
-
+<SearchUsers/>
           {/* Chat Groups */}
           <motion.div 
             variants={containerVariants}
@@ -245,14 +247,15 @@
             ))}
           </motion.div>
         </motion.div>
-                                                                                                                                     
+
+        {/* Main Chat Area */}
         <motion.div 
           initial={{ x: 100, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 120, damping: 20 }}
           className="flex-1 flex flex-col bg-zinc-800 m-4 rounded-3xl overflow-hidden"
         >
-          
+          {/* Chat Header */}
           <motion.div 
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -266,7 +269,7 @@
             </div>
           </motion.div>
 
-   
+          {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-zinc-900">
             {!user ? (
               <motion.div 

@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth, db } from './firebase'; // Make sure to import Firebase auth and firestore
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from './firebase'; // Ensure Firebase is correctly set up
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Chrome } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [user, setUser] = useState(null);
+  const [error, setError] = useState(null); // For error handling
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,12 +28,12 @@ const Login = () => {
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
-
+    
     try {
       const result = await signInWithPopup(auth, provider);
       const currentUser = result.user;
 
-      // Check if the user already exists in the Firestore database
+      // Check if the user already exists in Firestore
       const userDocRef = doc(db, 'users', currentUser.uid);
       const docSnap = await getDoc(userDocRef);
 
@@ -40,7 +41,7 @@ const Login = () => {
         // If user doesn't exist, create a new user document
         await setDoc(userDocRef, {
           displayName: currentUser.displayName,
-          searchName: currentUser.displayName.toLowerCase(),
+          searchName: currentUser.displayName.toLowerCase(), // For search
           email: currentUser.email,
           photoUrl: currentUser.photoURL,
           chatList: [],
@@ -48,10 +49,7 @@ const Login = () => {
         console.log("✅ User saved to Firestore:", currentUser.uid);
       } else {
         console.log("⚠️ User already exists:", currentUser.uid);
-      
-  
       }
-      
 
       // Set user info in local state
       setUser({
@@ -64,7 +62,8 @@ const Login = () => {
       // Redirect user to home page after successful login
       navigate('/home');
     } catch (error) {
-      console.error(error);
+      setError(error.message); // Set error state to show a message
+      console.error('Error signing in with Google:', error);
     }
   };
 
@@ -89,6 +88,13 @@ const Login = () => {
               Welcome back! Please sign in with Google
             </p>
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-100 text-red-800 p-4 rounded-md mb-4">
+              <p>{error}</p>
+            </div>
+          )}
 
           {!user ? (
             <div className="mt-6">
