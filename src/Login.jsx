@@ -1,8 +1,9 @@
+// Login.js
 import React, { useState, useEffect } from 'react';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from './firebase'; 
+import { auth, db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Chrome } from 'lucide-react'; 
+import { Chrome } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
@@ -11,7 +12,6 @@ const Login = () => {
   
   const navigate = useNavigate();
 
-  
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {

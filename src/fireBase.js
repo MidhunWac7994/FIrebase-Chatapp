@@ -1,3 +1,4 @@
+// firebase.js
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
@@ -14,6 +15,7 @@ const firebaseConfig = {
   databaseURL: "https://chat-app-285ed-default-rtdb.firebaseio.com", // Firebase Realtime DB URL
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app); // Firestore instance
 const auth = getAuth(app); // Firebase Auth instance
@@ -28,7 +30,7 @@ const signInWithGoogle = async () => {
     const user = result.user;
     console.log('Signed in as:', user.displayName);
 
-    // Save user to Firestore
+    // Save user to Firestore (Multiple users stored as separate docs)
     const userRef = doc(db, 'users', user.uid);
     await setDoc(userRef, {
       uid: user.uid,
@@ -92,4 +94,6 @@ const listenForStatusUpdates = (callback) => {
   });
 };
 
-export { auth, signInWithGoogle, signOutUser, db, database, setUserStatus, listenForUsers, listenForStatusUpdates };
+export {
+  auth, signInWithGoogle, signOutUser, db, database, setUserStatus, listenForUsers, listenForStatusUpdates
+};
