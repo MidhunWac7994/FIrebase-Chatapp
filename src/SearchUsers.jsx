@@ -1,66 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from './fireBase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { UserCircle2 } from 'lucide-react';
 
-const SearchUsers = () => {
+const SearchUsers = ({ onSelectUser }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+  const [users, setUsers] = useState([]);
 
-  // Handle input changes to update the search query
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-  };
-
-  // Search for users based on the query
-  const searchUsers = async () => {
-    if (!searchQuery) {
-      setSearchResults([]); // If the query is empty, clear the results
-      return;
-    }
-
-    // Query Firestore "users" collection
-    const q = query(
-      collection(db, 'users'),
-      where('displayName', '>=', searchQuery),
-      where('displayName', '<=', searchQuery + '\uf8ff') // This ensures it does a range search
-    );
-
-    const querySnapshot = await getDocs(q);
-    const users = querySnapshot.docs.map((doc) => doc.data()); // Extract user data
-    setSearchResults(users); // Update search results
-  };
-
-  // Trigger search whenever searchQuery changes
   useEffect(() => {
-    searchUsers();
+    const fetchUsers = async () => {
+      const usersQuery = query(
+        collection(db, 'users'),
+        where('displayName', '>=', searchQuery),
+        where('displayName', '<=', searchQuery + '\uf8ff')
+      );
+      const querySnapshot = await getDocs(usersQuery);
+      const usersList = querySnapshot.docs.map((doc) => doc.data());
+      setUsers(usersList);
+    };
+
+    if (searchQuery) {
+      fetchUsers();
+    } else {
+      setUsers([]);
+    }
   }, [searchQuery]);
 
   return (
-    <div className="p-4">
+    <div className="p-6">
       <input
         type="text"
-        placeholder="Search Users"
+        className="w-full p-2 rounded-md bg-zinc-700 text-zinc-100"
+        placeholder="Search users"
         value={searchQuery}
-        onChange={handleSearchChange}
-        className="w-full p-2 rounded-md bg-zinc-700 text-zinc-100 mb-4"
+        onChange={(e) => setSearchQuery(e.target.value)}
       />
-      {searchResults.length > 0 ? (
-        <ul>
-          {searchResults.map((user, index) => (
-            // Make sure the `key` is unique, either use `uid` or `index` as a fallback
-            <li key={user.uid || index} className="flex items-center py-2 border-b border-zinc-600">
-              <img
-                src={user.photoURL || 'default-avatar-url'} // If no photoURL, show a default one
-                alt={user.displayName}
-                className="w-8 h-8 rounded-full mr-3"
-              />
-              <span>{user.displayName}</span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No users found.</p>
-      )}
+      <div className="mt-4">
+        {users.length > 0 ? (
+          users.map((user) => (
+            <div
+              key={user.uid}
+              className="flex items-center space-x-4 p-3 hover:bg-zinc-700 rounded-lg cursor-pointer"
+              onClick={() => onSelectUser(user.uid)}
+            >
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName}
+                  className="w-10 h-10 rounded-full"
+                />
+              ) : (
+                <UserCircle2 className="text-zinc-500" size={32} />
+              )}
+              <span className="text-lg font-semibold text-zinc-100">{user.displayName}</span>
+            </div>
+          ))
+        ) : (
+          <p className="text-zinc-400">No users found</p>
+        )}
+      </div>
     </div>
   );
 };
