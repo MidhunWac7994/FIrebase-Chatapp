@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from './firebase'; 
+import { auth, db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Chrome } from 'lucide-react'; 
+import { Chrome } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null); 
-  
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  
+  // Track auth state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -25,8 +24,15 @@ const Login = () => {
         setUser(null);
       }
     });
-    return () => unsubscribe(); 
+    return () => unsubscribe();
   }, []);
+
+  // Redirect user if authenticated
+  useEffect(() => {
+    if (user) {
+      navigate('/home'); // Only redirect once the user is set
+    }
+  }, [user, navigate]);
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
@@ -60,9 +66,6 @@ const Login = () => {
         email: currentUser.email,
         photoURL: currentUser.photoURL,
       });
-
-      // Redirect user to home page after successful login
-      navigate('/home');
     } catch (error) {
       setError(error.message); // Handle error
       console.error('Error signing in with Google:', error);
@@ -84,12 +87,8 @@ const Login = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow-xl rounded-lg sm:px-10">
           <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-            <h2 className="text-3xl font-extrabold text-gray-900">
-              Sign in to Your Account
-            </h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Welcome back! Please sign in with Google
-            </p>
+            <h2 className="text-3xl font-extrabold text-gray-900">Sign in to Your Account</h2>
+            <p className="mt-2 text-sm text-gray-600">Welcome back! Please sign in with Google</p>
           </div>
 
           {/* Error message */}
@@ -138,9 +137,7 @@ const Login = () => {
                 <div className="w-full border-t border-gray-300"></div>
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">
-                  Or continue with
-                </span>
+                <span className="px-2 bg-white text-gray-500">Or continue with</span>
               </div>
             </div>
           </div>
