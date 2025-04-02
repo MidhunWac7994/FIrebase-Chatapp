@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from './firebase'; // Ensure Firebase is correctly set up
+import { auth, db } from './firebase'; 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Chrome } from 'lucide-react';
+import { Chrome } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [user, setUser] = useState(null);
-  const [error, setError] = useState(null); // For error handling
+  const [error, setError] = useState(null); 
+  
   const navigate = useNavigate();
 
+  
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -23,12 +25,12 @@ const Login = () => {
         setUser(null);
       }
     });
-    return () => unsubscribe();
+    return () => unsubscribe(); 
   }, []);
 
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
-    
+
     try {
       const result = await signInWithPopup(auth, provider);
       const currentUser = result.user;
@@ -38,7 +40,7 @@ const Login = () => {
       const docSnap = await getDoc(userDocRef);
 
       if (!docSnap.exists()) {
-        // If user doesn't exist, create a new user document
+        // If the user doesn't exist, create a new user document in Firestore
         await setDoc(userDocRef, {
           displayName: currentUser.displayName,
           searchName: currentUser.displayName.toLowerCase(), // For search
@@ -51,7 +53,7 @@ const Login = () => {
         console.log("⚠️ User already exists:", currentUser.uid);
       }
 
-      // Set user info in local state
+      // Set the user state
       setUser({
         uid: currentUser.uid,
         displayName: currentUser.displayName,
@@ -62,15 +64,16 @@ const Login = () => {
       // Redirect user to home page after successful login
       navigate('/home');
     } catch (error) {
-      setError(error.message); // Set error state to show a message
+      setError(error.message); // Handle error
       console.error('Error signing in with Google:', error);
     }
   };
 
+  // Handle Sign-Out
   const handleLogout = async () => {
     try {
       await auth.signOut();
-      setUser(null);
+      setUser(null); // Reset user state
     } catch (error) {
       console.error('Error signing out: ', error);
     }
