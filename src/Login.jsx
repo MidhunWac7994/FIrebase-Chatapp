@@ -45,7 +45,13 @@ const Login = () => {
           photoUrl: currentUser.photoURL,
           chatList: [],
         });
+        console.log("✅ User saved to Firestore:", currentUser.uid);
+      } else {
+        console.log("⚠️ User already exists:", currentUser.uid);
+      
+  
       }
+      
 
       // Set user info in local state
       setUser({
