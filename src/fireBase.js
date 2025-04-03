@@ -1,8 +1,8 @@
 // firebase.js
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getDatabase, ref, set, update, onValue } from 'firebase/database';
+import { getDatabase, ref, set, update, onValue,serverTimestamp } from 'firebase/database';
 
 // Firebase config
 const firebaseConfig = {
@@ -90,8 +90,18 @@ const listenForStatusUpdates = (callback) => {
   const usersRef = ref(database, 'users'); // Realtime DB reference to listen to user status changes
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val();
-    callback(data); 
+    callback(data); // Callback function to update the UI with status changes
   });
+};
+export const updateStatus = async (uid, status) => {
+  try {
+    await setDoc(doc(db, 'users', uid), {
+      status,
+      lastActive: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error updating status:', error);
+  }
 };
 
 export {
