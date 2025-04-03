@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, auth, signOutUser } from './fireBase';
+import { db, auth, signOutUser, signInWithGoogle } from './fireBase';
 import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Send, LogOut, MessageCircle, Smile, UserCircle2, Search, ChevronRight, X, Menu } from 'lucide-react';
@@ -25,6 +25,7 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // 监听用户登录状态
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -49,6 +50,27 @@ const Chat = () => {
 
     fetchRecentUsers();
   }, []);
+
+  // Listen for messages in active chat - MOVED HERE to maintain hooks order
+  useEffect(() => {
+    if (!activeChat) return;
+
+    const q = query(
+      collection(db, 'conversations', activeChat.id, 'messages'),
+      orderBy('timestamp', 'asc')
+    );
+
+    const unsub = onSnapshot(q, (querySnapshot) => {
+      const messagesData = [];
+      querySnapshot.forEach((doc) => {
+        messagesData.push({ id: doc.id, ...doc.data() });
+      });
+      setMessages(messagesData);
+      scrollToBottom();
+    });
+
+    return () => unsub();
+  }, [activeChat]);
 
   const createConversation = async (otherUserUid) => {
     const conversationId = [user.uid, otherUserUid].sort().join('-');
@@ -99,26 +121,6 @@ const Chat = () => {
     }
   };
 
-  useEffect(() => {
-    if (!activeChat) return;
-
-    const q = query(
-      collection(db, 'conversations', activeChat.id, 'messages'),
-      orderBy('timestamp', 'asc')
-    );
-
-    const unsub = onSnapshot(q, (querySnapshot) => {
-      const messagesData = [];
-      querySnapshot.forEach((doc) => {
-        messagesData.push({ id: doc.id, ...doc.data() });
-      });
-      setMessages(messagesData);
-      scrollToBottom();
-    });
-
-    return () => unsub();
-  }, [activeChat]);
-
   const onEmojiClick = (emojiObject) => {
     setMessage(prevMessage => prevMessage + emojiObject.emoji);
     setShowEmojiPicker(false);
@@ -144,12 +146,29 @@ const Chat = () => {
     }
   };
 
-  const fadeInUp = {
-    initial: { y: 20, opacity: 0 },
-    animate: { y: 0, opacity: 1 },
-    exit: { y: -20, opacity: 0 },
-    transition: { duration: 0.2 }
-  };
+  // 如果用户未登录，显示登录按钮
+  if (!user) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-zinc-950 to-zinc-900">
+        <motion.div
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="bg-zinc-800/90 p-8 rounded-2xl shadow-xl"
+        >
+          <h2 className="text-2xl font-bold text-zinc-100 mb-6 text-center">
+            Welcome to Chat App
+          </h2>
+          <button
+            onClick={signInWithGoogle}
+            className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-3 px-6 w-full"
+          >
+            <span className="text-zinc-100 font-medium">Sign in with Google</span>
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-zinc-950 to-zinc-900 text-zinc-100 overflow-hidden">
@@ -383,5 +402,5 @@ const Chat = () => {
     </div>
   );
 };
-
+ 
 export default Chat;

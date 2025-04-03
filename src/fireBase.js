@@ -1,6 +1,6 @@
 // firebase.js
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 import { getDatabase, ref, set, update, onValue } from 'firebase/database';
 
@@ -90,7 +90,7 @@ const listenForStatusUpdates = (callback) => {
   const usersRef = ref(database, 'users'); // Realtime DB reference to listen to user status changes
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val();
-    callback(data); // Callback function to update the UI with status changes
+    callback(data); 
   });
 };
 
