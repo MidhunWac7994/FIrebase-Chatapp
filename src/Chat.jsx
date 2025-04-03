@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, signOutUser, signInWithGoogle } from './fireBase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs, where } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Send, LogOut, MessageCircle, Smile, UserCircle2, Search, ChevronRight, X, Menu } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -12,7 +12,7 @@ const Chat = () => {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading,   setLoading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
@@ -20,7 +20,6 @@ const Chat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
-  const userStatusListener = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,41 +32,16 @@ const Chat = () => {
     return () => unsubscribe();
   }, []);
 
-  // Update user status
-  useEffect(() => {
-    if (!user) return;
-
-    const updateStatus = async () => {
-      try {
-        await setDoc(doc(db, 'users', user.uid), {
-          lastActive: new Date(),
-          status: 'online'
-        }, { merge: true });
-      } catch (error) {
-        console.error('Error updating status:', error);
-      }
-    };
-
-    // Update status every minute
-    const interval = setInterval(updateStatus, 60000);
-    updateStatus();
-
-    return () => clearInterval(interval);
-  }, [user]);
-
   useEffect(() => {
     const fetchRecentUsers = async () => {
-      const fiveMinutesAgo = new Date(Date.now() - 300000);
-
       const recentUsersQuery = query(
         collection(db, 'users'),
-        where('lastActive', '>=', fiveMinutesAgo),
         orderBy('lastActive', 'desc')
       );
       const querySnapshot = await getDocs(recentUsersQuery);
       const recentUsersList = [];
       querySnapshot.forEach((doc) => {
-        recentUsersList.push({ id: doc.id, ...doc.data() });
+        recentUsersList.push(doc.data());
       });
       setRecentUsers(recentUsersList);
     };
@@ -95,6 +69,24 @@ const Chat = () => {
     return () => unsub();
   }, [activeChat]);
 
+  useEffect(() => {
+    if (!activeChat || !user) return;
+
+    const otherUserUid = activeChat.id.split('-').find(uid => uid !== user.uid);
+    const otherUserRef = doc(db, 'users', otherUserUid);
+
+    // Real-time listener for other user's status
+    const unsubscribe = onSnapshot(otherUserRef, (docSnapshot) => {
+      if (docSnapshot.exists()) {
+        setOtherUser(docSnapshot.data());
+      }
+    }, (error) => {
+      console.error('Error fetching other user data:', error);
+    });
+
+    return () => unsubscribe();
+  }, [activeChat, user]);
+
   const createConversation = async (otherUserUid) => {
     const conversationId = [user.uid, otherUserUid].sort().join('-');
     const conversationRef = doc(db, 'conversations', conversationId);
@@ -108,28 +100,6 @@ const Chat = () => {
     }
 
     setActiveChat({ id: conversationId });
-    const otherUserDoc = await getDoc(doc(db, 'users', otherUserUid));
-    const otherUserData = otherUserDoc.data();
-    
-    // Check if user is online
-    const isOnline = new Date() - new Date(otherUserData.lastActive) < 300000;
-    setOtherUser({ ...otherUserData, status: isOnline ? 'online' : 'offline' });
-    
-    // Set up real-time status listener
-    if (userStatusListener.current) {
-      userStatusListener.current();
-    }
-    userStatusListener.current = onSnapshot(doc(db, 'users', otherUserUid), (doc) => {
-      if (doc.exists()) {
-        const updatedUserData = doc.data();
-        const newStatus = new Date() - new Date(updatedUserData.lastActive) < 300000 ? 'online' : 'offline';
-        setOtherUser(prevUser => ({
-          ...prevUser,
-          ...updatedUserData,
-          status: newStatus
-        }));
-      }
-    });
     
     setTimeout(() => {
       messageInputRef.current?.focus();
