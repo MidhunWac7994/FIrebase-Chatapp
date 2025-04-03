@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, signOutUser, signInWithGoogle } from './fireBase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Send, LogOut, MessageCircle, Smile, UserCircle2, Search, ChevronRight, X, Menu } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -20,12 +20,12 @@ const Chat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
+  const userStatusListener = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 监听用户登录状态
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -33,17 +33,41 @@ const Chat = () => {
     return () => unsubscribe();
   }, []);
 
-  // Fetch recent users
+  // Update user status
+  useEffect(() => {
+    if (!user) return;
+
+    const updateStatus = async () => {
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          lastActive: new Date(),
+          status: 'online'
+        }, { merge: true });
+      } catch (error) {
+        console.error('Error updating status:', error);
+      }
+    };
+
+    // Update status every minute
+    const interval = setInterval(updateStatus, 60000);
+    updateStatus();
+
+    return () => clearInterval(interval);
+  }, [user]);
+
   useEffect(() => {
     const fetchRecentUsers = async () => {
+      const fiveMinutesAgo = new Date(Date.now() - 300000);
+
       const recentUsersQuery = query(
         collection(db, 'users'),
+        where('lastActive', '>=', fiveMinutesAgo),
         orderBy('lastActive', 'desc')
       );
       const querySnapshot = await getDocs(recentUsersQuery);
       const recentUsersList = [];
       querySnapshot.forEach((doc) => {
-        recentUsersList.push(doc.data());
+        recentUsersList.push({ id: doc.id, ...doc.data() });
       });
       setRecentUsers(recentUsersList);
     };
@@ -51,7 +75,6 @@ const Chat = () => {
     fetchRecentUsers();
   }, []);
 
-  // Listen for messages in active chat - MOVED HERE to maintain hooks order
   useEffect(() => {
     if (!activeChat) return;
 
@@ -86,14 +109,32 @@ const Chat = () => {
 
     setActiveChat({ id: conversationId });
     const otherUserDoc = await getDoc(doc(db, 'users', otherUserUid));
-    setOtherUser(otherUserDoc.data());
+    const otherUserData = otherUserDoc.data();
     
-    // Focus on message input after selecting a chat
+    // Check if user is online
+    const isOnline = new Date() - new Date(otherUserData.lastActive) < 300000;
+    setOtherUser({ ...otherUserData, status: isOnline ? 'online' : 'offline' });
+    
+    // Set up real-time status listener
+    if (userStatusListener.current) {
+      userStatusListener.current();
+    }
+    userStatusListener.current = onSnapshot(doc(db, 'users', otherUserUid), (doc) => {
+      if (doc.exists()) {
+        const updatedUserData = doc.data();
+        const newStatus = new Date() - new Date(updatedUserData.lastActive) < 300000 ? 'online' : 'offline';
+        setOtherUser(prevUser => ({
+          ...prevUser,
+          ...updatedUserData,
+          status: newStatus
+        }));
+      }
+    });
+    
     setTimeout(() => {
       messageInputRef.current?.focus();
     }, 300);
     
-    // Close sidebar on mobile after selecting a chat
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -126,7 +167,6 @@ const Chat = () => {
     setShowEmojiPicker(false);
   };
 
-  // Animation variants
   const sidebarVariants = {
     open: { 
       x: 0,
@@ -146,24 +186,23 @@ const Chat = () => {
     }
   };
 
-  // 如果用户未登录，显示登录按钮
   if (!user) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-zinc-950 to-zinc-900">
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-gray-950">
         <motion.div
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="bg-zinc-800/90 p-8 rounded-2xl shadow-xl"
+          className="bg-gray-800/90 p-8 rounded-2xl shadow-xl"
         >
-          <h2 className="text-2xl font-bold text-zinc-100 mb-6 text-center">
+          <h2 className="text-2xl font-bold text-sky-100 mb-6 text-center">
             Welcome to Chat App
           </h2>
           <button
             onClick={signInWithGoogle}
-            className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-500 transition-colors rounded-lg py-3 px-6 w-full"
+            className="flex items-center justify-center space-x-2 bg-sky-600 hover:bg-sky-500 transition-colors rounded-lg py-3 px-6 w-full"
           >
-            <span className="text-zinc-100 font-medium">Sign in with Google</span>
+            <span className="text-sky-100 font-medium">Sign in with Google</span>
           </button>
         </motion.div>
       </div>
@@ -171,11 +210,11 @@ const Chat = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-zinc-950 to-zinc-900 text-zinc-100 overflow-hidden">
+    <div className="flex h-screen bg-gradient-to-br from-sky-400 to-gray-950 text-sky-50 overflow-hidden">
       {/* Mobile Menu Toggle */}
       <button 
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-zinc-800 rounded-full shadow-lg"
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-full shadow-lg"
       >
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
@@ -185,14 +224,14 @@ const Chat = () => {
         variants={sidebarVariants}
         initial="closed"
         animate={sidebarOpen ? "open" : "closed"}
-        className="w-80 bg-zinc-900/60 backdrop-blur-md border-r border-zinc-800/50 flex flex-col fixed md:relative h-full z-40"
+        className="w-80 bg-gray-900/80 backdrop-blur-md border-r border-gray-800/50 flex flex-col fixed md:relative h-full z-40"
       >
         {/* User Profile Section */}
         <motion.div
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 120, delay: 0.1 }}
-          className="p-6 border-b border-zinc-800/70 flex items-center space-x-4"
+          className="p-6 border-b border-gray-800/70 flex items-center space-x-4"
         >
           {user?.photoURL ? (
             <motion.div
@@ -205,7 +244,7 @@ const Chat = () => {
                 transition={{ type: 'spring', stiffness: 300 }}
                 src={user.photoURL}
                 alt="Profile"
-                className="w-14 h-14 rounded-full border-2 border-blue-500/50 shadow-lg shadow-blue-500/20"
+                className="w-14 h-14 rounded-full border-2 border-sky-500/50 shadow-lg shadow-sky-500/20"
               />
             </motion.div>
           ) : (
@@ -213,14 +252,14 @@ const Chat = () => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
             >
-              <UserCircle2 className="text-blue-400" size={56} />
+              <UserCircle2 className="text-sky-400" size={56} />
             </motion.div>
           )}
           <div>
-            <p className="text-xl font-bold text-zinc-100">{user?.displayName || 'Welcome'}</p>
+            <p className="text-xl font-bold text-sky-100">{user?.displayName || 'Welcome'}</p>
             <div className="flex items-center">
               <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-              <p className="text-sm text-zinc-400">Online</p>
+              <p className="text-sm text-sky-300">Online</p>
             </div>
           </div>
           <motion.div 
@@ -230,7 +269,7 @@ const Chat = () => {
           >
             <LogOut
               onClick={signOutUser}
-              className="text-zinc-500 hover:text-red-500 cursor-pointer transition-colors"
+              className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
               size={24}
             />
           </motion.div>
@@ -253,15 +292,15 @@ const Chat = () => {
         transition={{ duration: 0.5 }}
         className="flex-1 flex flex-col relative"
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 to-purple-900/10 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-sky-600 to-sky-800/10 pointer-events-none"></div>
         
-        <div className="flex-1 flex flex-col bg-zinc-900/40 backdrop-blur-md m-4 rounded-3xl overflow-hidden border border-zinc-800/50 shadow-xl z-10">
+        <div className="flex-1 flex flex-col bg-gray-900/60 backdrop-blur-md m-4 rounded-3xl overflow-hidden border border-gray-800/50 shadow-xl z-10">
           {/* Chat Header */}
           <motion.div
             initial={{ y: -30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 120 }}
-            className="p-6 border-b border-zinc-800/70 flex items-center space-x-4"
+            className="p-6 border-b border-gray-800/70 flex items-center space-x-4"
           >
             {activeChat && otherUser ? (
               <>
@@ -274,19 +313,19 @@ const Chat = () => {
                     <img
                       src={otherUser.photoURL || 'default-avatar-url'}
                       alt={otherUser.displayName}
-                      className="w-12 h-12 rounded-full border-2 border-zinc-700 group-hover:border-blue-500 transition-colors"
+                      className="w-12 h-12 rounded-full border-2 border-gray-700 group-hover:border-sky-500 transition-colors"
                     />
                     <span
-                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-zinc-900 ${
+                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 ${
                         otherUser.status === 'online' ? 'bg-green-500' : 'bg-gray-500'
                       }`}
                     ></span>
                   </motion.div>
                   <div className="flex flex-col">
-                    <span className="text-xl font-semibold text-zinc-100 group-hover:text-blue-400 transition-colors">
+                    <span className="text-xl font-semibold text-sky-100 group-hover:text-sky-400 transition-colors">
                       {otherUser.displayName}
                     </span>
-                    <span className="text-sm text-zinc-400">
+                    <span className="text-sm text-sky-300">
                       {otherUser.status === 'online' ? 'Online' : 'Offline'}
                     </span>
                   </div>
@@ -294,8 +333,8 @@ const Chat = () => {
               </>
             ) : (
               <div className="flex items-center space-x-3">
-                <MessageCircle size={32} className="text-zinc-500" />
-                <span className="text-lg text-zinc-400">Select a user to start chatting</span>
+                <MessageCircle size={32} className="text-sky-500" />
+                <span className="text-lg text-sky-300">Select a user to start chatting</span>
               </div>
             )}
           </motion.div>
@@ -314,8 +353,8 @@ const Chat = () => {
                   <div 
                     className={`max-w-xs md:max-w-md ${
                       msg.uid === user?.uid 
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-700 rounded-2xl rounded-br-sm' 
-                        : 'bg-zinc-800 rounded-2xl rounded-bl-sm'
+                        ? 'bg-gradient-to-r from-sky-600 to-sky-700 rounded-2xl rounded-br-sm' 
+                        : 'bg-gray-800 rounded-2xl rounded-bl-sm'
                     } p-4 shadow-lg`}
                   >
                     <div className="flex items-start space-x-3">
@@ -328,10 +367,10 @@ const Chat = () => {
                       )}
                       <div className="flex flex-col">
                         {msg.uid !== user?.uid && (
-                          <span className="text-xs text-zinc-400 mb-1">{msg.displayName}</span>
+                          <span className="text-xs text-sky-300 mb-1">{msg.displayName}</span>
                         )}
-                        <p className="text-zinc-100">{msg.text}</p>
-                        <span className="text-xs text-zinc-400/70 mt-1 self-end">
+                        <p className="text-sky-50">{msg.text}</p>
+                        <span className="text-xs text-sky-200/70 mt-1 self-end">
                           {msg.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                       </div>
@@ -348,20 +387,20 @@ const Chat = () => {
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 120, delay: 0.3 }}
-            className="p-4 bg-zinc-900/60 border-t border-zinc-800/50"
+            className="p-4 bg-gray-900/80 border-t border-gray-800/50"
           >
-            <div className="flex items-center space-x-3 bg-zinc-800/90 rounded-xl p-2 px-4">
+            <div className="flex items-center space-x-3 bg-gray-800/90 rounded-xl p-2 px-4">
               <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                 <Smile
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="text-zinc-400 hover:text-blue-400 cursor-pointer transition-colors"
+                  className="text-sky-400 hover:text-sky-300 cursor-pointer transition-colors"
                   size={24}
                 />
               </motion.div>
               <input
                 ref={messageInputRef}
                 type="text"
-                className="flex-1 p-2 bg-transparent text-zinc-100 outline-none"
+                className="flex-1 p-2 bg-transparent text-sky-100 outline-none placeholder-sky-300/50"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={activeChat ? "Type a message" : "Select a conversation to start"}
@@ -376,8 +415,8 @@ const Chat = () => {
                   onClick={sendMessageToConversation}
                   className={`${
                     message.trim() && activeChat 
-                      ? 'text-blue-500 hover:text-blue-400' 
-                      : 'text-zinc-600'
+                      ? 'text-sky-500 hover:text-sky-400' 
+                      : 'text-gray-600'
                   } cursor-pointer transition-colors`}
                   size={24}
                 />
@@ -402,5 +441,5 @@ const Chat = () => {
     </div>
   );
 };
- 
+
 export default Chat;
