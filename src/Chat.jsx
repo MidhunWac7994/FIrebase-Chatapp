@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, auth, signOutUser, signInWithGoogle, updateStatus } from './fireBase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs } from 'firebase/firestore';
+import { db, auth, signOutUser, signInWithGoogle } from './fireBase';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs, Timestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Send, LogOut, MessageCircle, Smile, UserCircle2, Search, ChevronRight, X, Menu } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
@@ -20,11 +20,56 @@ const Chat = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
-  const userStatusListener = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // Define sidebar variants for animations
+  const sidebarVariants = {
+    open: { 
+      x: 0,
+      transition: { 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 30 
+      }
+    },
+    closed: { 
+      x: "-100%",
+      transition: { 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 30 
+      }
+    }
   };
+
+  // Function to update user's last active time
+  const updateLastActive = async () => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        lastActive: new Date(),
+      }, { merge: true });
+    } catch (error) {
+      console.error('Error updating last active:', error);
+    }
+  };
+
+  // Format last seen timestamp
+  const formatLastSeen = (timestamp) => {
+    if (!timestamp) return "Last seen: Unknown";
+    
+    // Check if timestamp is a valid Firestore Timestamp
+    if (timestamp.toDate) {
+      const date = timestamp.toDate();
+      return `Last seen: ${date.toLocaleString()}`;
+    } else {
+      return "Last seen: Unknown";
+    }
+  };
+
+  // Check if user is online based on lastActive
+  const isOnline = otherUser?.lastActive && 
+    (otherUser.lastActive.toDate && 
+     new Date().getTime() - otherUser.lastActive.toDate().getTime() < 5 * 60 * 1000);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -33,20 +78,15 @@ const Chat = () => {
     return () => unsubscribe();
   }, []);
 
-  // Update user status
+  // Periodically update last active time
   useEffect(() => {
     if (!user) return;
 
-    const interval = setInterval(() => {
-      updateStatus(user.uid, 'online');
-    }, 60000); // Update every minute
+    updateLastActive(); // Initial update
 
-    updateStatus(user.uid, 'online'); // Initial update
+    const intervalId = setInterval(updateLastActive, 5 * 60 * 1000); // Every 5 minutes
 
-    return () => {
-      clearInterval(interval);
-      updateStatus(user.uid, 'offline');
-    };
+    return () => clearInterval(intervalId);
   }, [user]);
 
   useEffect(() => {
@@ -58,7 +98,12 @@ const Chat = () => {
       const querySnapshot = await getDocs(recentUsersQuery);
       const recentUsersList = [];
       querySnapshot.forEach((doc) => {
-        recentUsersList.push(doc.data());
+        const userData = doc.data();
+        // Ensure lastActive is properly handled
+        if (userData.lastActive && userData.lastActive.toDate) {
+          userData.lastActive = userData.lastActive.toDate();
+        }
+        recentUsersList.push({ ...userData, id: doc.id });
       });
       setRecentUsers(recentUsersList);
     };
@@ -86,37 +131,6 @@ const Chat = () => {
     return () => unsub();
   }, [activeChat]);
 
-  useEffect(() => {
-    if (!activeChat || !user) return;
-
-    const otherUserUid = activeChat.id.split('-').find(uid => uid !== user.uid);
-
-    if (userStatusListener.current) {
-      userStatusListener.current();
-    }
-
-    userStatusListener.current = onSnapshot(doc(db, 'users', otherUserUid), (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data();
-        const isOnline = new Date() - new Date(userData.lastActive?.seconds * 1000) < 300000;
-        setOtherUser({
-          uid: doc.id,
-          displayName: userData.displayName || 'Unknown',
-          status: isOnline ? 'online' : 'offline',
-          photoURL: userData.photoURL || 'default-avatar-url',
-        });
-      } else {
-        setOtherUser(null);
-      }
-    });
-
-    return () => {
-      if (userStatusListener.current) {
-        userStatusListener.current();
-      }
-    };
-  }, [activeChat, user]);
-
   const createConversation = async (otherUserUid) => {
     const conversationId = [user.uid, otherUserUid].sort().join('-');
     const conversationRef = doc(db, 'conversations', conversationId);
@@ -125,11 +139,20 @@ const Chat = () => {
     if (!conversationSnap.exists()) {
       await setDoc(conversationRef, {
         users: [user.uid, otherUserUid],
-        lastUpdated: serverTimestamp(),
+        lastUpdated: new Date(),
       });
     }
 
     setActiveChat({ id: conversationId });
+    const otherUserDoc = await getDoc(doc(db, 'users', otherUserUid));
+    const otherUserData = otherUserDoc.data();
+    
+    // Ensure lastActive is properly handled
+    if (otherUserData.lastActive && otherUserData.lastActive.toDate) {
+      otherUserData.lastActive = otherUserData.lastActive.toDate();
+    }
+    
+    setOtherUser(otherUserData);
     
     setTimeout(() => {
       messageInputRef.current?.focus();
@@ -151,8 +174,9 @@ const Chat = () => {
         uid: user.uid,
         displayName: user.displayName,
         photoURL: user.photoURL,
-        timestamp: serverTimestamp(),
+        timestamp: new Date(),
       });
+      await updateLastActive(); // Update last active after sending message
       setMessage('');
       setShowEmojiPicker(false);
     } catch (error) {
@@ -167,23 +191,8 @@ const Chat = () => {
     setShowEmojiPicker(false);
   };
 
-  const sidebarVariants = {
-    open: { 
-      x: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    },
-    closed: { 
-      x: "-100%",
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   if (!user) {
@@ -211,6 +220,7 @@ const Chat = () => {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-sky-400 to-gray-950 text-sky-50 overflow-hidden">
+      {/* Mobile Menu Toggle */}
       <button 
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-full shadow-lg"
@@ -218,12 +228,14 @@ const Chat = () => {
         {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
+      {/* Sidebar */}
       <motion.div
         variants={sidebarVariants}
         initial="closed"
         animate={sidebarOpen ? "open" : "closed"}
         className="w-80 bg-gray-900/80 backdrop-blur-md border-r border-gray-800/50 flex flex-col fixed md:relative h-full z-40"
       >
+        {/* User Profile Section */}
         <motion.div
           initial={{ y: -50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
@@ -282,6 +294,7 @@ const Chat = () => {
         </motion.div>
       </motion.div>
 
+      {/* Main Chat Area */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -291,6 +304,7 @@ const Chat = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-sky-600 to-sky-800/10 pointer-events-none"></div>
         
         <div className="flex-1 flex flex-col bg-gray-900/60 backdrop-blur-md m-4 rounded-3xl overflow-hidden border border-gray-800/50 shadow-xl z-10">
+          {/* Chat Header */}
           <motion.div
             initial={{ y: -30, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -312,7 +326,7 @@ const Chat = () => {
                     />
                     <span
                       className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                        otherUser.status === 'online' ? 'bg-green-500' : 'bg-gray-500'
+                        isOnline ? 'bg-green-500' : 'bg-gray-500'
                       }`}
                     ></span>
                   </motion.div>
@@ -320,8 +334,14 @@ const Chat = () => {
                     <span className="text-xl font-semibold text-sky-100 group-hover:text-sky-400 transition-colors">
                       {otherUser.displayName}
                     </span>
-                    <span className="text-sm text-sky-300">
-                      {otherUser.status === 'online' ? 'Online' : 'Offline'}
+                    <span className="text-sm">
+                      {isOnline ? (
+                        <span className="text-green-500 font-medium">● Online Now</span>
+                      ) : (
+                        <span className="text-gray-400">
+                          {formatLastSeen(otherUser.lastActive)}
+                        </span>
+                      )}
                     </span>
                   </div>
                 </Link>
@@ -334,6 +354,7 @@ const Chat = () => {
             )}
           </motion.div>
 
+          {/* Messages List */}
           <div className="flex-1 p-4 overflow-y-auto">
             <AnimatePresence>
               {messages.map((msg, index) => (
@@ -376,6 +397,7 @@ const Chat = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Message Input */}
           <motion.div 
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -434,5 +456,5 @@ const Chat = () => {
     </div>
   );
 };
-
+ 
 export default Chat;
