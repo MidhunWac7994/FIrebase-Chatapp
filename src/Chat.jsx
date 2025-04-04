@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, signOutUser, signInWithGoogle } from './fireBase';
-import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, doc, getDoc, setDoc, getDocs, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Send, LogOut, MessageCircle, Smile, UserCircle2, Search, ChevronRight, X, Menu } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
-import SearchUsers from './SearchUsers';
 import { Link } from 'react-router-dom';
 
 const Chat = () => {
@@ -21,55 +20,9 @@ const Chat = () => {
   const messagesEndRef = useRef(null);
   const messageInputRef = useRef(null);
 
-  // Define sidebar variants for animations
-  const sidebarVariants = {
-    open: { 
-      x: 0,
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    },
-    closed: { 
-      x: "-100%",
-      transition: { 
-        type: "spring", 
-        stiffness: 300, 
-        damping: 30 
-      }
-    }
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
-
-  // Function to update user's last active time
-  const updateLastActive = async () => {
-    if (!user) return;
-    try {
-      await setDoc(doc(db, 'users', user.uid), {
-        lastActive: new Date(),
-      }, { merge: true });
-    } catch (error) {
-      console.error('Error updating last active:', error);
-    }
-  };
-
-  // Format last seen timestamp
-  const formatLastSeen = (timestamp) => {
-    if (!timestamp) return "Last seen: Unknown";
-    
-    // Check if timestamp is a valid Firestore Timestamp
-    if (timestamp.toDate) {
-      const date = timestamp.toDate();
-      return `Last seen: ${date.toLocaleString()}`;
-    } else {
-      return "Last seen: Unknown";
-    }
-  };
-
-  // Check if user is online based on lastActive
-  const isOnline = otherUser?.lastActive && 
-    (otherUser.lastActive.toDate && 
-     new Date().getTime() - otherUser.lastActive.toDate().getTime() < 5 * 60 * 1000);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -78,38 +31,49 @@ const Chat = () => {
     return () => unsubscribe();
   }, []);
 
-  // Periodically update last active time
   useEffect(() => {
-    if (!user) return;
-
-    updateLastActive(); // Initial update
-
-    const intervalId = setInterval(updateLastActive, 5 * 60 * 1000); // Every 5 minutes
-
-    return () => clearInterval(intervalId);
-  }, [user]);
+    const storedChattedUsers = localStorage.getItem('chattedUsers');
+    if (storedChattedUsers) {
+      setRecentUsers(JSON.parse(storedChattedUsers));
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchRecentUsers = async () => {
-      const recentUsersQuery = query(
-        collection(db, 'users'),
-        orderBy('lastActive', 'desc')
+    const fetchChattedUsers = async () => {
+      if (!user) return;
+
+      const conversationsQuery = query(
+        collection(db, 'conversations'),
+        where('users', 'array-contains', user.uid)
       );
-      const querySnapshot = await getDocs(recentUsersQuery);
-      const recentUsersList = [];
+
+      const querySnapshot = await getDocs(conversationsQuery);
+      const chattedUserIds = new Set();
+
       querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        // Ensure lastActive is properly handled
-        if (userData.lastActive && userData.lastActive.toDate) {
-          userData.lastActive = userData.lastActive.toDate();
-        }
-        recentUsersList.push({ ...userData, id: doc.id });
+        const conversationData = doc.data();
+        conversationData.users.forEach((userId) => {
+          if (userId !== user.uid) {
+            chattedUserIds.add(userId);
+          }
+        });
       });
-      setRecentUsers(recentUsersList);
+
+      const chattedUsers = [];
+
+      for (const userId of chattedUserIds) {
+        const userDoc = await getDoc(doc(db, 'users', userId));
+        if (userDoc.exists()) {
+          chattedUsers.push(userDoc.data());
+        }
+      }
+
+      setRecentUsers(chattedUsers);
+      localStorage.setItem('chattedUsers', JSON.stringify(chattedUsers));
     };
 
-    fetchRecentUsers();
-  }, []);
+    fetchChattedUsers();
+  }, [user]);
 
   useEffect(() => {
     if (!activeChat) return;
@@ -145,19 +109,12 @@ const Chat = () => {
 
     setActiveChat({ id: conversationId });
     const otherUserDoc = await getDoc(doc(db, 'users', otherUserUid));
-    const otherUserData = otherUserDoc.data();
-    
-    // Ensure lastActive is properly handled
-    if (otherUserData.lastActive && otherUserData.lastActive.toDate) {
-      otherUserData.lastActive = otherUserData.lastActive.toDate();
-    }
-    
-    setOtherUser(otherUserData);
-    
+    setOtherUser(otherUserDoc.data());
+
     setTimeout(() => {
       messageInputRef.current?.focus();
     }, 300);
-    
+
     if (window.innerWidth < 768) {
       setSidebarOpen(false);
     }
@@ -176,7 +133,6 @@ const Chat = () => {
         photoURL: user.photoURL,
         timestamp: new Date(),
       });
-      await updateLastActive(); // Update last active after sending message
       setMessage('');
       setShowEmojiPicker(false);
     } catch (error) {
@@ -187,12 +143,27 @@ const Chat = () => {
   };
 
   const onEmojiClick = (emojiObject) => {
-    setMessage(prevMessage => prevMessage + emojiObject.emoji);
+    setMessage((prevMessage) => prevMessage + emojiObject.emoji);
     setShowEmojiPicker(false);
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const sidebarVariants = {
+    open: {
+      x: 0,
+      transition: {
+        type: 'spring',
+        stiffness: 300,
+        damping: 30,
+      },
+    },
+    closed: {
+      x: '-100%',
+      transition: {
+        type: 'spring',
+        stiffness: 300,
+        damping: 30,
+      },
+    },
   };
 
   if (!user) {
@@ -221,7 +192,7 @@ const Chat = () => {
   return (
     <div className="flex h-screen bg-gradient-to-br from-sky-400 to-gray-950 text-sky-50 overflow-hidden">
       {/* Mobile Menu Toggle */}
-      <button 
+      <button
         onClick={() => setSidebarOpen(!sidebarOpen)}
         className="md:hidden fixed top-4 left-4 z-50 p-2 bg-gray-800 rounded-full shadow-lg"
       >
@@ -271,11 +242,7 @@ const Chat = () => {
               <p className="text-sm text-sky-300">Online</p>
             </div>
           </div>
-          <motion.div 
-            whileHover={{ scale: 1.2, rotate: 180 }} 
-            whileTap={{ scale: 0.9 }}
-            className="ml-auto"
-          >
+          <motion.div whileHover={{ scale: 1.2, rotate: 180 }} whileTap={{ scale: 0.9 }} className="ml-auto">
             <LogOut
               onClick={signOutUser}
               className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
@@ -290,7 +257,29 @@ const Chat = () => {
           transition={{ delay: 0.2 }}
           className="flex-1 overflow-y-auto"
         >
-          <SearchUsers onSelectUser={createConversation} recentUsers={recentUsers} />
+          <div className="p-4">
+            <input
+              type="text"
+              placeholder="Search users..."
+              className="w-full p-2 bg-gray-800/90 text-sky-100 placeholder-sky-300/50 rounded-lg mb-4"
+            />
+            <div className="space-y-2">
+              {recentUsers.map((user) => (
+                <div
+                  key={user.uid}
+                  className="flex items-center space-x-3 cursor-pointer hover:bg-gray-800/70 p-2 rounded-lg"
+                  onClick={() => createConversation(user.uid)}
+                >
+                  <img
+                    src={user.photoURL || 'default-avatar-url'}
+                    alt={user.displayName}
+                    className="w-8 h-8 rounded-full"
+                  />
+                  <span>{user.displayName}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </motion.div>
       </motion.div>
 
@@ -324,25 +313,13 @@ const Chat = () => {
                       alt={otherUser.displayName}
                       className="w-12 h-12 rounded-full border-2 border-gray-700 group-hover:border-sky-500 transition-colors"
                     />
-                    <span
-                      className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 ${
-                        isOnline ? 'bg-green-500' : 'bg-gray-500'
-                      }`}
-                    ></span>
+                    <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 bg-green-500"></span>
                   </motion.div>
                   <div className="flex flex-col">
                     <span className="text-xl font-semibold text-sky-100 group-hover:text-sky-400 transition-colors">
                       {otherUser.displayName}
                     </span>
-                    <span className="text-sm">
-                      {isOnline ? (
-                        <span className="text-green-500 font-medium">● Online Now</span>
-                      ) : (
-                        <span className="text-gray-400">
-                          {formatLastSeen(otherUser.lastActive)}
-                        </span>
-                      )}
-                    </span>
+                    <span className="text-sm text-sky-300">Online</span>
                   </div>
                 </Link>
               </>
@@ -365,13 +342,7 @@ const Chat = () => {
                   transition={{ delay: index * 0.05, duration: 0.2 }}
                   className={`mb-4 flex ${msg.uid === user?.uid ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div 
-                    className={`max-w-xs md:max-w-md ${
-                      msg.uid === user?.uid 
-                        ? 'bg-gradient-to-r from-sky-600 to-sky-700 rounded-2xl rounded-br-sm' 
-                        : 'bg-gray-800 rounded-2xl rounded-bl-sm'
-                    } p-4 shadow-lg`}
-                  >
+                  <div className={`max-w-xs md:max-w-md ${msg.uid === user?.uid ? 'bg-gradient-to-r from-sky-600 to-sky-700 rounded-2xl rounded-br-sm' : 'bg-gray-800 rounded-2xl rounded-bl-sm'} p-4 shadow-lg`}>
                     <div className="flex items-start space-x-3">
                       {msg.uid !== user?.uid && (
                         <img
@@ -386,7 +357,7 @@ const Chat = () => {
                         )}
                         <p className="text-sky-50">{msg.text}</p>
                         <span className="text-xs text-sky-200/70 mt-1 self-end">
-                          {msg.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          {msg.timestamp?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                     </div>
@@ -398,7 +369,7 @@ const Chat = () => {
           </div>
 
           {/* Message Input */}
-          <motion.div 
+          <motion.div
             initial={{ y: 50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ type: 'spring', stiffness: 120, delay: 0.3 }}
@@ -422,17 +393,10 @@ const Chat = () => {
                 onKeyPress={(e) => e.key === 'Enter' && sendMessageToConversation()}
                 disabled={!activeChat}
               />
-              <motion.div 
-                whileHover={{ scale: 1.1, rotate: -10 }} 
-                whileTap={{ scale: 0.9, rotate: 0 }}
-              >
+              <motion.div whileHover={{ scale: 1.1, rotate: -10 }} whileTap={{ scale: 0.9, rotate: 0 }}>
                 <Send
                   onClick={sendMessageToConversation}
-                  className={`${
-                    message.trim() && activeChat 
-                      ? 'text-sky-500 hover:text-sky-400' 
-                      : 'text-gray-600'
-                  } cursor-pointer transition-colors`}
+                  className={`${message.trim() && activeChat ? 'text-sky-500 hover:text-sky-400' : 'text-gray-600'} cursor-pointer transition-colors`}
                   size={24}
                 />
               </motion.div>
@@ -441,7 +405,7 @@ const Chat = () => {
 
           <AnimatePresence>
             {showEmojiPicker && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
@@ -456,5 +420,5 @@ const Chat = () => {
     </div>
   );
 };
- 
+
 export default Chat;
