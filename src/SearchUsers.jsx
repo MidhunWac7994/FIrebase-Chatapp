@@ -6,25 +6,30 @@ import { UserCircle2 } from 'lucide-react';
 const SearchUsers = ({ onSelectUser }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState([]);
+  const [filteredUsers, setFilteredUsers] = useState([]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      const usersQuery = query(
-        collection(db, 'users'),
-        where('displayName', '>=', searchQuery),
-        where('displayName', '<=', searchQuery + '\uf8ff')
-      );
+    const fetchAllUsers = async () => {
+      const usersQuery = query(collection(db, 'users'));
       const querySnapshot = await getDocs(usersQuery);
       const usersList = querySnapshot.docs.map((doc) => doc.data());
       setUsers(usersList);
+      setFilteredUsers(usersList);
     };
 
-    if (searchQuery) {
-      fetchUsers();
+    fetchAllUsers();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setFilteredUsers(users);
     } else {
-      setUsers([]);
+      const filtered = users.filter((user) =>
+        user.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredUsers(filtered);
     }
-  }, [searchQuery]);
+  }, [searchQuery, users]);
 
   return (
     <div className="p-6">
@@ -36,8 +41,8 @@ const SearchUsers = ({ onSelectUser }) => {
         onChange={(e) => setSearchQuery(e.target.value)}
       />
       <div className="mt-4">
-        {users.length > 0 ? (
-          users.map((user) => (
+        {filteredUsers.length > 0 ? (
+          filteredUsers.map((user) => (
             <div
               key={user.uid}
               className="flex items-center space-x-4 p-3 hover:bg-zinc-700 rounded-lg cursor-pointer"
@@ -53,6 +58,11 @@ const SearchUsers = ({ onSelectUser }) => {
                 <UserCircle2 className="text-zinc-500" size={32} />
               )}
               <span className="text-lg font-semibold text-zinc-100">{user.displayName}</span>
+              {user.unreadCount > 0 && (
+                <span className="ml-auto bg-sky-500 text-sky-50 text-xs px-2 py-1 rounded-full">
+                  {user.unreadCount}
+                </span>
+              )}
             </div>
           ))
         ) : (
