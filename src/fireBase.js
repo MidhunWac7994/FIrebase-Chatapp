@@ -20,37 +20,31 @@ const database = getDatabase(app);
 
 const googleProvider = new GoogleAuthProvider();
 
-// Sign in with Google
 const signInWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     console.log('Signed in as:', user.displayName);
 
-    // Check if user already exists in Firestore
     const userRef = doc(db, 'users', user.uid);
-    const userSnapshot = await userRef.get();
-
-    if (!userSnapshot.exists()) {
-      await setDoc(userRef, {
-        uid: user.uid,
-        displayName: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL || 'default-avatar-url',
-      });
-    }
+    await setDoc(userRef, {
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL || 'default-avatar-url', // Default avatar if no photoURL
+    });
 
     // Store user status in Realtime Database
     const userStatusRef = ref(database, 'presence/' + user.uid);
     await set(userStatusRef, {
       online: true,
-      lastOnline: serverTimestamp(),
+      lastOnline: serverTimestamp(), // 使用 serverTimestamp
     });
 
     // Set up onDisconnect to update status when user leaves
     onDisconnect(userStatusRef).set({
       online: false,
-      lastOnline: serverTimestamp(),
+      lastOnline: serverTimestamp(), // 使用 serverTimestamp
     });
 
     return user;
@@ -66,7 +60,7 @@ const signOutUser = async () => {
     const userStatusRef = ref(database, 'presence/' + auth.currentUser.uid);
     await update(userStatusRef, {
       online: false,
-      lastOnline: serverTimestamp(),
+      lastOnline: serverTimestamp(), // 使用 serverTimestamp
     });
 
     await signOut(auth);
@@ -82,7 +76,7 @@ const setUserStatus = async (userId, status) => {
     const userStatusRef = ref(database, 'presence/' + userId);
     await update(userStatusRef, {
       online: status,
-      lastOnline: serverTimestamp(),
+      lastOnline: serverTimestamp(), // 使用 serverTimestamp
     });
     console.log(`User status updated to ${status}`);
   } catch (error) {
@@ -108,7 +102,7 @@ const listenForStatusUpdates = (callback) => {
   });
 };
 
-// Export necessary modules
+// 导出 realtimeDb
 export const realtimeDb = database;
 
 export {
@@ -119,5 +113,6 @@ export {
   database, 
   setUserStatus, 
   listenForUsers, 
-  listenForStatusUpdates
+  listenForStatusUpdates,
+  serverTimestamp // 导出 serverTimestamp
 };

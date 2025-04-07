@@ -8,7 +8,6 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
 
-  // Fetch opponent's online status and last seen time
   useEffect(() => {
     if (!otherUser) return;
 
@@ -24,11 +23,10 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
     return () => off(presenceRef);
   }, [otherUser]);
 
-  // Format last seen timestamp to a readable time
   const formatLastSeen = (timestamp) => {
-    if (!timestamp) return "Unknown";  // Return "Unknown" if no timestamp
+    if (!timestamp) return "Unknown";
     const date = new Date(timestamp);
-    return date.toLocaleString([], { hour: "2-digit", minute: "2-digit" });  // Format as time only (e.g. 9:30 AM)
+    return date.toLocaleString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
@@ -53,9 +51,7 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isOpponentOnline
-                ? "Online Now"
-                : `Last seen: ${formatLastSeen(lastOnline)}`}  
+              {isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
             </span>
           </div>
         </div>

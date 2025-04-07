@@ -9,7 +9,7 @@ import ChatHeader from './Components/ChatHeader';
 import MessageInput from './Components/MessageInput';
 import ProfilePanel from './Components/ProfilePanel';
 import DeleteMessageModal from './Components/DeleteMessage';
-import { auth, db, database, setUserStatus } from './fireBase';
+import { auth, db, realtimeDb, signInWithGoogle, signOutUser, setUserStatus, serverTimestamp } from './fireBase';
 
 const Chat = () => { 
   const [message, setMessage] = useState('');
@@ -45,15 +45,15 @@ const Chat = () => {
   useEffect(() => {
     if (!user) return;
 
-    const presenceRef = ref(database, `presence/${user.uid}`);
-    const connectedRef = ref(database, `.info/connected`);
+    const presenceRef = ref(realtimeDb, `presence/${user.uid}`);
+    const connectedRef = ref(realtimeDb, `.info/connected`);
 
     let interval;
 
     // 设置断开连接时的处理程序
     onDisconnect(presenceRef).set({
       online: false,
-      lastOnline: new Date().toISOString()
+      lastOnline: serverTimestamp()
     });
 
     const handleConnectedChange = (snapshot) => {
@@ -63,14 +63,14 @@ const Chat = () => {
         // 用户已连接
         set(presenceRef, {
           online: true,
-          lastOnline: new Date().toISOString()
+          lastOnline: serverTimestamp()
         });
 
         // 每 5 分钟更新一次最后在线时间
         interval = setInterval(() => {
           set(presenceRef, {
             online: true,
-            lastOnline: new Date().toISOString()
+            lastOnline: serverTimestamp()
           });
         }, 5 * 60 * 1000);
       } else {
@@ -101,8 +101,6 @@ const Chat = () => {
 
     return () => {
       clearInterval(interval);
-      off(connectedRef);
-      off(presenceRef);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
@@ -330,7 +328,7 @@ const Chat = () => {
           
           <MessageInput 
             message={message}
-            setMessage={setMessage}     
+            setMessage={setMessage}
             activeChat={activeChat}
             sendMessageToConversation={sendMessageToConversation}
             showEmojiPicker={showEmojiPicker}
