@@ -1,10 +1,8 @@
-// firebase.js
 import { initializeApp } from 'firebase/app';
 import { getFirestore, doc, setDoc, updateDoc, collection, onSnapshot } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
-import { getDatabase, ref, set, update, onValue,serverTimestamp } from 'firebase/database';
+import { getDatabase, ref, set, update, onValue, onDisconnect, serverTimestamp } from 'firebase/database';
 
-// Firebase config
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_API_KEY,
   authDomain: import.meta.env.VITE_AUTH_DOMAIN,
@@ -12,14 +10,13 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_APP_ID,
-  databaseURL: "https://chat-app-285ed-default-rtdb.firebaseio.com", // Firebase Realtime DB URL
+  databaseURL: "https://chat-app-285ed-default-rtdb.firebaseio.com",
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app); // Firestore instance
-const auth = getAuth(app); // Firebase Auth instance
-const database = getDatabase(app); // Realtime Database instance
+const db = getFirestore(app); 
+const auth = getAuth(app); 
+const database = getDatabase(app); 
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -30,20 +27,30 @@ const signInWithGoogle = async () => {
     const user = result.user;
     console.log('Signed in as:', user.displayName);
 
-    // Save user to Firestore (Multiple users stored as separate docs)
+    // Check if user already exists in Firestore
     const userRef = doc(db, 'users', user.uid);
-    await setDoc(userRef, {
-      uid: user.uid,
-      displayName: user.displayName,
-      email: user.email,
-      photoURL: user.photoURL || 'default-avatar-url', // Default avatar if no photoURL
-    });
+    const userSnapshot = await userRef.get();
+
+    if (!userSnapshot.exists()) {
+      await setDoc(userRef, {
+        uid: user.uid,
+        displayName: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL || 'default-avatar-url',
+      });
+    }
 
     // Store user status in Realtime Database
-    const userStatusRef = ref(database, 'users/' + user.uid);
-    set(userStatusRef, {
-      status: 'online',
-      last_changed: new Date().toISOString(),
+    const userStatusRef = ref(database, 'presence/' + user.uid);
+    await set(userStatusRef, {
+      online: true,
+      lastOnline: serverTimestamp(),
+    });
+
+    // Set up onDisconnect to update status when user leaves
+    onDisconnect(userStatusRef).set({
+      online: false,
+      lastOnline: serverTimestamp(),
     });
 
     return user;
@@ -55,6 +62,13 @@ const signInWithGoogle = async () => {
 // Sign out the user
 const signOutUser = async () => {
   try {
+    // Update user status to offline before signing out
+    const userStatusRef = ref(database, 'presence/' + auth.currentUser.uid);
+    await update(userStatusRef, {
+      online: false,
+      lastOnline: serverTimestamp(),
+    });
+
     await signOut(auth);
     console.log('User signed out');
   } catch (error) {
@@ -65,10 +79,10 @@ const signOutUser = async () => {
 // Update user status in Realtime Database
 const setUserStatus = async (userId, status) => {
   try {
-    const userStatusRef = ref(database, 'users/' + userId);
+    const userStatusRef = ref(database, 'presence/' + userId);
     await update(userStatusRef, {
-      status,
-      last_changed: new Date().toISOString(),
+      online: status,
+      lastOnline: serverTimestamp(),
     });
     console.log(`User status updated to ${status}`);
   } catch (error) {
@@ -87,23 +101,23 @@ const listenForUsers = (callback) => {
 
 // Listen for user status updates in Realtime Database
 const listenForStatusUpdates = (callback) => {
-  const usersRef = ref(database, 'users'); // Realtime DB reference to listen to user status changes
+  const usersRef = ref(database, 'presence'); // Realtime DB reference to listen to user status changes
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val();
     callback(data); // Callback function to update the UI with status changes
   });
 };
-export const updateStatus = async (uid, status) => {
-  try {
-    await setDoc(doc(db, 'users', uid), {
-      status,
-      lastActive: serverTimestamp()
-    }, { merge: true });
-  } catch (error) {
-    console.error('Error updating status:', error);
-  }
-};
+
+// Export necessary modules
+export const realtimeDb = database;
 
 export {
-  auth, signInWithGoogle, signOutUser, db, database, setUserStatus, listenForUsers, listenForStatusUpdates
+  auth, 
+  signInWithGoogle, 
+  signOutUser, 
+  db, 
+  database, 
+  setUserStatus, 
+  listenForUsers, 
+  listenForStatusUpdates
 };
