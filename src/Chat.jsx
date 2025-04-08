@@ -9,7 +9,7 @@ import ChatHeader from './Components/ChatHeader';
 import MessageInput from './Components/MessageInput';
 import ProfilePanel from './Components/ProfilePanel';
 import DeleteMessageModal from './Components/DeleteMessage';
-import { auth, db, realtimeDb, signInWithGoogle, signOutUser, setUserStatus, serverTimestamp } from './fireBase';
+import { auth, db, realtimeDb, signInWithGoogle, signOutUser, setUserStatus, setTypingStatus, serverTimestamp } from './fireBase';
 
 const Chat = () => { 
   const [message, setMessage] = useState('');
@@ -200,6 +200,9 @@ const Chat = () => {
 
     setLoading(true);
     try {
+      // 清除输入状态
+      await setTypingStatus(activeChat.id, user.uid, false);
+
       const conversationRef = doc(db, 'conversations', activeChat.id);
       await addDoc(collection(conversationRef, 'messages'), {
         text: message,
