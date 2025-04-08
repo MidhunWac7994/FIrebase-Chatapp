@@ -7,7 +7,6 @@ import { realtimeDb } from '../fireBase';
 const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!otherUser) return;
@@ -23,24 +22,6 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
 
     return () => off(presenceRef);
   }, [otherUser]);
-
-  useEffect(() => {
-    if (!otherUser || !activeChat) return;
-
-    const typingStatusRef = ref(realtimeDb, `typingStatus/${activeChat.id}/${otherUser.uid}`);
-    const handleTypingStatus = (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setIsTyping(data.isTyping);
-      }
-    };
-
-    onValue(typingStatusRef, handleTypingStatus);
-
-    return () => {
-      off(typingStatusRef);
-    };
-  }, [otherUser, activeChat]);
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
@@ -63,14 +44,18 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               alt={otherUser.displayName}
               className="w-12 h-12 rounded-full border-2 border-gray-700 group-hover:border-sky-500 transition-colors"
             />
-            <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-900 bg-green-500"></span>
+            <span 
+              className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${
+                isOpponentOnline ? "bg-green-500" : "bg-red-500"
+              }`}
+            ></span>
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-semibold text-sky-100 group-hover:text-sky-400 transition-colors">
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isTyping ? "Typing..." : isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
+              {isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
             </span>
           </div>
         </div>
