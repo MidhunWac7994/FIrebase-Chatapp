@@ -1,8 +1,8 @@
-import React, { useRef, useEffect } from 'react';
+// MessageInput.jsx
+import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile, Send } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
-import { setTypingStatus } from '../fireBase';
 
 const MessageInput = ({ 
   message, 
@@ -13,36 +13,6 @@ const MessageInput = ({
   setShowEmojiPicker
 }) => {
   const messageInputRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
-
-  useEffect(() => {
-    if (!activeChat || !message) return;
-
-    const updateTypingStatus = async (isTyping) => {
-      await setTypingStatus(activeChat.id, auth.currentUser.uid, isTyping);
-    };
-
-    if (message.trim().length > 0) {
-      updateTypingStatus(true);
-      
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-
-      typingTimeoutRef.current = setTimeout(() => {
-        updateTypingStatus(false);
-      }, 2000);
-    } else {
-      updateTypingStatus(false);
-    }
-
-    return () => {
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-      updateTypingStatus(false);
-    };
-  }, [message, activeChat]);
 
   const onEmojiClick = (emojiObject) => {
     setMessage((prevMessage) => prevMessage + emojiObject.emoji);
