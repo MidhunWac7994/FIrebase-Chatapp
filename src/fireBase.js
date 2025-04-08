@@ -31,20 +31,18 @@ const signInWithGoogle = async () => {
       uid: user.uid,
       displayName: user.displayName,
       email: user.email,
-      photoURL: user.photoURL || 'default-avatar-url', // Default avatar if no photoURL
+      photoURL: user.photoURL || 'default-avatar-url', 
     });
 
-    // Store user status in Realtime Database
     const userStatusRef = ref(database, 'presence/' + user.uid);
     await set(userStatusRef, {
       online: true,
-      lastOnline: serverTimestamp(), // 使用 serverTimestamp
+      lastOnline: serverTimestamp(), 
     });
 
-    // Set up onDisconnect to update status when user leaves
     onDisconnect(userStatusRef).set({
       online: false,
-      lastOnline: serverTimestamp(), // 使用 serverTimestamp
+      lastOnline: serverTimestamp(), 
     });
 
     return user;
@@ -53,14 +51,12 @@ const signInWithGoogle = async () => {
   }
 };
 
-// Sign out the user
 const signOutUser = async () => {
   try {
-    // Update user status to offline before signing out
     const userStatusRef = ref(database, 'presence/' + auth.currentUser.uid);
     await update(userStatusRef, {
       online: false,
-      lastOnline: serverTimestamp(), // 使用 serverTimestamp
+      lastOnline: serverTimestamp(), 
     });
 
     await signOut(auth);
@@ -70,13 +66,12 @@ const signOutUser = async () => {
   }
 };
 
-// Update user status in Realtime Database
 const setUserStatus = async (userId, status) => {
   try {
     const userStatusRef = ref(database, 'presence/' + userId);
     await update(userStatusRef, {
       online: status,
-      lastOnline: serverTimestamp(), // 使用 serverTimestamp
+      lastOnline: serverTimestamp(), 
     });
     console.log(`User status updated to ${status}`);
   } catch (error) {
@@ -84,25 +79,34 @@ const setUserStatus = async (userId, status) => {
   }
 };
 
-// Listen for users (Firestore or Realtime Database)
+const setTypingStatus = async (conversationId, userId, isTyping) => {
+  try {
+    const typingStatusRef = ref(database, `typingStatus/${conversationId}/${userId}`);
+    await set(typingStatusRef, {
+      isTyping: isTyping,
+      timestamp: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error('Error updating typing status:', error);
+  }
+};
+
 const listenForUsers = (callback) => {
-  const usersRef = collection(db, 'users'); // Firestore collection to listen for changes
+  const usersRef = collection(db, 'users'); 
   onSnapshot(usersRef, (snapshot) => {
     const users = snapshot.docs.map(doc => doc.data());
-    callback(users); // Callback function to update the UI
+    callback(users);
   });
 };
 
-// Listen for user status updates in Realtime Database
 const listenForStatusUpdates = (callback) => {
-  const usersRef = ref(database, 'presence'); // Realtime DB reference to listen to user status changes
+  const usersRef = ref(database, 'presence'); 
   onValue(usersRef, (snapshot) => {
     const data = snapshot.val();
-    callback(data); // Callback function to update the UI with status changes
+    callback(data); 
   });
 };
 
-// 导出 realtimeDb
 export const realtimeDb = database;
 
 export {
@@ -114,5 +118,6 @@ export {
   setUserStatus, 
   listenForUsers, 
   listenForStatusUpdates,
-  serverTimestamp // 导出 serverTimestamp
+  serverTimestamp,
+  setTypingStatus
 };

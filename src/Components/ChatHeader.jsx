@@ -7,6 +7,7 @@ import { realtimeDb } from '../fireBase';
 const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!otherUser) return;
@@ -22,6 +23,24 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
 
     return () => off(presenceRef);
   }, [otherUser]);
+
+  useEffect(() => {
+    if (!otherUser || !activeChat) return;
+
+    const typingStatusRef = ref(realtimeDb, `typingStatus/${activeChat.id}/${otherUser.uid}`);
+    const handleTypingStatus = (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setIsTyping(data.isTyping);
+      }
+    };
+
+    onValue(typingStatusRef, handleTypingStatus);
+
+    return () => {
+      off(typingStatusRef);
+    };
+  }, [otherUser, activeChat]);
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
@@ -51,7 +70,7 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
+              {isTyping ? "Typing..." : isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
             </span>
           </div>
         </div>
