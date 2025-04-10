@@ -1,3 +1,4 @@
+// ChatHeader.jsx
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle } from "lucide-react";
@@ -7,11 +8,14 @@ import { realtimeDb } from "../fireBase";
 const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
+  const [isOpponentTyping, setIsOpponentTyping] = useState(false);
 
   useEffect(() => {
     if (!otherUser) return;
 
     const presenceRef = ref(realtimeDb, `presence/${otherUser.uid}`);
+    const typingRef = ref(realtimeDb, `typing/${otherUser.uid}`);
+
     onValue(presenceRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -20,7 +24,17 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
       }
     });
 
-    return () => off(presenceRef);
+    onValue(typingRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setIsOpponentTyping(data.isTyping);
+      }
+    });
+
+    return () => {
+      off(presenceRef);
+      off(typingRef);
+    };
   }, [otherUser]);
 
   const formatLastSeen = (timestamp) => {
@@ -59,7 +73,9 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
             </span>
             <span className="text-sm text-sky-300">
               {isOpponentOnline
-                ? "Online"
+                ? isOpponentTyping
+                  ? "Typing..."
+                  : "Online"
                 : `Last seen: ${formatLastSeen(lastOnline)}`}
             </span>
           </div>
@@ -68,7 +84,7 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
         <div className="flex items-center space-x-3">
           <MessageCircle size={32} className="text-sky-500" />
           <span className="text-lg text-sky-300">
-            Select a user to start chatting 
+            Select a user to start chatting
           </span>
         </div>
       )}

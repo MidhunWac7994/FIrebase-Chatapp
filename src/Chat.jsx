@@ -1,3 +1,4 @@
+// Chat.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, where, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -46,7 +47,7 @@ const Chat = () => {
     if (!user) return;
 
     const presenceRef = ref(realtimeDb, `presence/${user.uid}`);
-    const connectedRef = ref(realtimeDb, `.info/connected`);
+    const connectedRef = ref(realtimeDb, '.info/connected');
 
     let interval;
 
@@ -333,6 +334,7 @@ const Chat = () => {
             sendMessageToConversation={sendMessageToConversation}
             showEmojiPicker={showEmojiPicker}
             setShowEmojiPicker={setShowEmojiPicker}
+            user={user} // 确保传递 user
             messageInputRef={messageInputRef}
             loading={loading}
           />

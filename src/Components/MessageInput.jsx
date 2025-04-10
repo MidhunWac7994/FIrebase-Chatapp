@@ -1,8 +1,10 @@
 // MessageInput.jsx
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile, Send } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import { ref, set, onDisconnect } from 'firebase/database';
+import { realtimeDb } from '../fireBase';
 
 const MessageInput = ({ 
   message, 
@@ -10,9 +12,61 @@ const MessageInput = ({
   activeChat, 
   sendMessageToConversation,
   showEmojiPicker,
-  setShowEmojiPicker
+  setShowEmojiPicker,
+  user,
+  messageInputRef,
+  loading
 }) => {
-  const messageInputRef = useRef(null);
+  const typingRef = ref(realtimeDb, `typing/${user?.uid}`); // 使用可选链操作符
+
+  useEffect(() => {
+    if (!user || !activeChat) return;
+
+    // 更新 typing 状态
+    const handleTyping = () => {
+      set(typingRef, {
+        isTyping: true,
+        timestamp: Date.now()
+      });
+
+      // 清除 typing 状态
+      const timeout = setTimeout(() => {
+        set(typingRef, {
+          isTyping: false,
+          timestamp: Date.now()
+        });
+      }, 3000);
+
+      return () => clearTimeout(timeout);
+    };
+
+    messageInputRef.current.addEventListener('compositionstart', handleTyping);
+    messageInputRef.current.addEventListener('compositionend', handleTyping);
+    messageInputRef.current.addEventListener('keypress', handleTyping);
+
+    return () => {
+      messageInputRef.current.removeEventListener('compositionstart', handleTyping);
+      messageInputRef.current.removeEventListener('compositionend', handleTyping);
+      messageInputRef.current.removeEventListener('keypress', handleTyping);
+    };
+  }, [user, activeChat]);
+
+  useEffect(() => {
+    if (!user || !activeChat) return;
+
+    const handleStopTyping = () => {
+      set(typingRef, {
+        isTyping: false,
+        timestamp: Date.now()
+      });
+    };
+
+    messageInputRef.current.addEventListener('blur', handleStopTyping);
+
+    return () => {
+      messageInputRef.current.removeEventListener('blur', handleStopTyping);
+    };
+  }, [user, activeChat]);
 
   const onEmojiClick = (emojiObject) => {
     setMessage((prevMessage) => prevMessage + emojiObject.emoji);
