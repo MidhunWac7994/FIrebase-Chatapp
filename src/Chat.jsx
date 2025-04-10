@@ -327,17 +327,15 @@ const Chat = () => {
           />
           
           <MessageInput 
-  message={message}
-  setMessage={setMessage}
-  activeChat={activeChat}
-  sendMessageToConversation={sendMessageToConversation}
-  showEmojiPicker={showEmojiPicker}
-  setShowEmojiPicker={setShowEmojiPicker}
-  messageInputRef={messageInputRef}
-  user={user} // ✅ pass this
-  loading={loading}
-/>
-
+            message={message}
+            setMessage={setMessage}
+            activeChat={activeChat}
+            sendMessageToConversation={sendMessageToConversation}
+            showEmojiPicker={showEmojiPicker}
+            setShowEmojiPicker={setShowEmojiPicker}
+            messageInputRef={messageInputRef}
+            loading={loading}
+          />
         </div>
       </motion.div>
 

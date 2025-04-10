@@ -9,16 +9,19 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [lastOnline, setLastOnline] = useState(null);
 
   useEffect(() => {
-    if (!activeChat || !otherUser) return;
-  
-    const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${otherUser.uid}`);
-    onValue(typingRef, (snapshot) => {
-      setIsTyping(snapshot.val() === true);
+    if (!otherUser) return;
+
+    const presenceRef = ref(realtimeDb, `presence/${otherUser.uid}`);
+    onValue(presenceRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setIsOpponentOnline(data.online);
+        setLastOnline(data.lastOnline);
+      }
     });
-  
-    return () => off(typingRef);
-  }, [activeChat, otherUser]);
-  
+
+    return () => off(presenceRef);
+  }, [otherUser]);
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
@@ -55,13 +58,10 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-  {isTyping
-    ? "Typing..."
-    : isOpponentOnline
-    ? "Online"
-    : `Last seen: ${formatLastSeen(lastOnline)}`}
-</span>
-
+              {isOpponentOnline
+                ? "Online"
+                : `Last seen: ${formatLastSeen(lastOnline)}`}
+            </span>
           </div>
         </div>
       ) : (
