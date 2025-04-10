@@ -7,33 +7,18 @@ import { realtimeDb } from "../fireBase";
 const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
-
-  useEffect(() => {
-    if (!otherUser) return;
-
-    const presenceRef = ref(realtimeDb, `presence/${otherUser.uid}`);
-    onValue(presenceRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setIsOpponentOnline(data.online);
-        setLastOnline(data.lastOnline);
-      }
-    });
-
-    return () => off(presenceRef);
-  }, [otherUser]);
 
   useEffect(() => {
     if (!activeChat || !otherUser) return;
-
+  
     const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${otherUser.uid}`);
     onValue(typingRef, (snapshot) => {
       setIsTyping(snapshot.val() === true);
     });
-
+  
     return () => off(typingRef);
   }, [activeChat, otherUser]);
+  
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
@@ -70,12 +55,13 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isTyping
-                ? "Typing..."
-                : isOpponentOnline
-                ? "Online"
-                : `Last seen: ${formatLastSeen(lastOnline)}`}
-            </span>
+  {isTyping
+    ? "Typing..."
+    : isOpponentOnline
+    ? "Online"
+    : `Last seen: ${formatLastSeen(lastOnline)}`}
+</span>
+
           </div>
         </div>
       ) : (

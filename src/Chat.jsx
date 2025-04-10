@@ -334,7 +334,7 @@ const Chat = () => {
   showEmojiPicker={showEmojiPicker}
   setShowEmojiPicker={setShowEmojiPicker}
   messageInputRef={messageInputRef}
-  user={user} // <-- pass user here
+  user={user} // ✅ pass this
   loading={loading}
 />
 

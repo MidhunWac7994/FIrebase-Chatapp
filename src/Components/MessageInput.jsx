@@ -5,7 +5,7 @@ import EmojiPicker from 'emoji-picker-react';
 import { ref, set } from 'firebase/database';
 import { realtimeDb } from '../fireBase';
 
-let typingTimer;
+let typingTimeout;
 
 const MessageInput = ({
   message,
@@ -21,18 +21,19 @@ const MessageInput = ({
   const onEmojiClick = (emojiObject) => {
     setMessage((prevMessage) => prevMessage + emojiObject.emoji);
     setShowEmojiPicker(false);
+    handleTyping(); // Trigger typing when emoji added
   };
 
   const handleTyping = () => {
-    if (!activeChat || !user) return;
+    if (!user || !activeChat) return;
 
     const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${user.uid}`);
-    set(typingRef, true);
+    set(typingRef, true); // Start typing
 
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => {
-      set(typingRef, false);
-    }, 3000); // 3 seconds of inactivity = not typing
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      set(typingRef, false); // Stop typing after 3s of no input
+    }, 3000);
   };
 
   const handleChange = (e) => {
@@ -42,9 +43,10 @@ const MessageInput = ({
 
   const handleSend = () => {
     sendMessageToConversation();
-    if (activeChat && user) {
+    setMessage('');
+    if (user && activeChat) {
       const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${user.uid}`);
-      set(typingRef, false); // clear typing when sent
+      set(typingRef, false); // Stop typing after sending
     }
   };
 
