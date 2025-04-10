@@ -1,4 +1,4 @@
-// DeleteMessageModal.js
+
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, AlertCircle, Trash2 } from 'lucide-react';
@@ -109,4 +109,4 @@ const DeleteMessageModal = ({
   );
 };
 
-export default DeleteMessageModal;
+export default DeleteMessageModal;        

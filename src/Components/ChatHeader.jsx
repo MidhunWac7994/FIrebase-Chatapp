@@ -1,21 +1,18 @@
-// ChatHeader.jsx
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { MessageCircle } from "lucide-react";
 import { ref, onValue, off } from "firebase/database";
 import { realtimeDb } from "../fireBase";
 
-const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
+const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel, user }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
-  const [isOpponentTyping, setIsOpponentTyping] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!otherUser) return;
 
     const presenceRef = ref(realtimeDb, `presence/${otherUser.uid}`);
-    const typingRef = ref(realtimeDb, `typing/${otherUser.uid}`);
-
     onValue(presenceRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -24,24 +21,61 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
       }
     });
 
-    onValue(typingRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        setIsOpponentTyping(data.isTyping);
+    return () => off(presenceRef);
+  }, [otherUser]);
+
+  // Monitor typing status
+  useEffect(() => {
+    if (!activeChat || !otherUser || !user) return;
+
+    // Get the correct typing reference path for the other user
+    const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${otherUser.uid}`);
+    
+    const typingListener = onValue(typingRef, (snapshot) => {
+      const typingData = snapshot.val();
+      setIsTyping(!!typingData);
+      
+      // Auto-reset typing status after 3 seconds as a fallback
+      if (typingData) {
+        const now = Date.now();
+        const typingTime = typingData.timestamp;
+        
+        // If typing data is more than 3 seconds old, consider it stale
+        if (now - typingTime > 3000) {
+          setIsTyping(false);
+        }
       }
     });
 
-    return () => {
-      off(presenceRef);
-      off(typingRef);
-    };
-  }, [otherUser]);
+    return () => off(typingRef);
+  }, [activeChat, otherUser, user]);
 
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
     const date = new Date(timestamp);
     return date.toLocaleString([], { hour: "2-digit", minute: "2-digit" });
   };
+
+  // Typing indicator animation
+  const TypingIndicator = () => (
+    <div className="flex space-x-1 mt-1">
+      <motion.div 
+        className="w-2 h-2 bg-sky-400 rounded-full"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+      />
+      <motion.div 
+        className="w-2 h-2 bg-sky-400 rounded-full"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+      />
+      <motion.div 
+        className="w-2 h-2 bg-sky-400 rounded-full"
+        animate={{ y: [0, -4, 0] }}
+        transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+      />
+    </div>
+  );
 
   return (
     <motion.div
@@ -72,11 +106,16 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isOpponentOnline
-                ? isOpponentTyping
-                  ? "Typing..."
-                  : "Online"
-                : `Last seen: ${formatLastSeen(lastOnline)}`}
+              {isTyping ? (
+                <div className="flex items-center">
+                  <span className="mr-2">Typing</span>
+                  <TypingIndicator />
+                </div>
+              ) : isOpponentOnline ? (
+                "Online"
+              ) : (
+                `Last seen: ${formatLastSeen(lastOnline)}`
+              )}
             </span>
           </div>
         </div>
@@ -84,7 +123,7 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
         <div className="flex items-center space-x-3">
           <MessageCircle size={32} className="text-sky-500" />
           <span className="text-lg text-sky-300">
-            Select a user to start chatting
+            Select a user to start chatting 
           </span>
         </div>
       )}

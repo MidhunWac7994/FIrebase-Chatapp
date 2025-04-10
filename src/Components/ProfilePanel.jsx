@@ -1,5 +1,5 @@
 // ProfilePanel.js
-import React from 'react';
+import React, { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Mail, MessageCircle } from 'lucide-react';
 
@@ -29,7 +29,9 @@ const ProfilePanel = ({
         damping: 30,
       },
     },
-  };
+  }; 
+
+  
 
   return (
     <AnimatePresence>

@@ -1,4 +1,3 @@
-// Chat.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, where, getDocs, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -47,7 +46,7 @@ const Chat = () => {
     if (!user) return;
 
     const presenceRef = ref(realtimeDb, `presence/${user.uid}`);
-    const connectedRef = ref(realtimeDb, '.info/connected');
+    const connectedRef = ref(realtimeDb, `.info/connected`);
 
     let interval;
 
@@ -313,11 +312,12 @@ const Chat = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-sky-600 to-sky-800/10 pointer-events-none"></div>
         
         <div className="flex-1 flex flex-col bg-gray-900/60 backdrop-blur-md m-4 rounded-3xl overflow-hidden border border-gray-800/50 shadow-xl z-10">
-          <ChatHeader 
-            activeChat={activeChat}
-            otherUser={otherUser}
-            toggleProfilePanel={toggleProfilePanel}
-          />
+        <ChatHeader 
+  activeChat={activeChat}
+  otherUser={otherUser}
+  toggleProfilePanel={toggleProfilePanel}
+  user={user}  
+/>
           
           <MessageList 
             messages={messages}
@@ -328,16 +328,16 @@ const Chat = () => {
           />
           
           <MessageInput 
-            message={message}
-            setMessage={setMessage}
-            activeChat={activeChat}
-            sendMessageToConversation={sendMessageToConversation}
-            showEmojiPicker={showEmojiPicker}
-            setShowEmojiPicker={setShowEmojiPicker}
-            user={user} // 确保传递 user
-            messageInputRef={messageInputRef}
-            loading={loading}
-          />
+  message={message}
+  setMessage={setMessage}
+  activeChat={activeChat}
+  sendMessageToConversation={sendMessageToConversation}
+  showEmojiPicker={showEmojiPicker}
+  setShowEmojiPicker={setShowEmojiPicker}
+  messageInputRef={messageInputRef}
+  loading={loading}
+  user={user}  
+/>
         </div>
       </motion.div>
 
@@ -360,4 +360,4 @@ const Chat = () => {
   );
 };
 
-export default Chat;
+export default Chat;            
