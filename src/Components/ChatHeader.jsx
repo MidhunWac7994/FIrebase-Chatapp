@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import { MessageCircle } from 'lucide-react';
-import { ref, onValue, off } from 'firebase/database';
-import { realtimeDb } from '../fireBase';
+import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { MessageCircle } from "lucide-react";
+import { ref, onValue, off } from "firebase/database";
+import { realtimeDb } from "../fireBase";
 
 const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
   const [isOpponentOnline, setIsOpponentOnline] = useState(false);
   const [lastOnline, setLastOnline] = useState(null);
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (!otherUser) return;
@@ -23,6 +24,17 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
     return () => off(presenceRef);
   }, [otherUser]);
 
+  useEffect(() => {
+    if (!activeChat || !otherUser) return;
+
+    const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${otherUser.uid}`);
+    onValue(typingRef, (snapshot) => {
+      setIsTyping(snapshot.val() === true);
+    });
+
+    return () => off(typingRef);
+  }, [activeChat, otherUser]);
+
   const formatLastSeen = (timestamp) => {
     if (!timestamp) return "Unknown";
     const date = new Date(timestamp);
@@ -33,18 +45,21 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
     <motion.div
       initial={{ y: -30, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 120 }}
+      transition={{ type: "spring", stiffness: 120 }}
       className="p-6 border-b border-gray-800/70 flex items-center space-x-4"
     >
       {activeChat && otherUser ? (
-        <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => toggleProfilePanel(otherUser)}>
+        <div
+          className="flex items-center space-x-3 group cursor-pointer"
+          onClick={() => toggleProfilePanel(otherUser)}
+        >
           <div className="relative">
             <img
-              src={otherUser.photoURL || 'default-avatar-url'}
+              src={otherUser.photoURL || "default-avatar-url"}
               alt={otherUser.displayName}
               className="w-12 h-12 rounded-full border-2 border-gray-700 group-hover:border-sky-500 transition-colors"
             />
-            <span 
+            <span
               className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${
                 isOpponentOnline ? "bg-green-500" : "bg-red-500"
               }`}
@@ -55,14 +70,20 @@ const ChatHeader = ({ activeChat, otherUser, toggleProfilePanel }) => {
               {otherUser.displayName}
             </span>
             <span className="text-sm text-sky-300">
-              {isOpponentOnline ? "Online" : `Last seen: ${formatLastSeen(lastOnline)}`}
+              {isTyping
+                ? "Typing..."
+                : isOpponentOnline
+                ? "Online"
+                : `Last seen: ${formatLastSeen(lastOnline)}`}
             </span>
           </div>
         </div>
       ) : (
         <div className="flex items-center space-x-3">
           <MessageCircle size={32} className="text-sky-500" />
-          <span className="text-lg text-sky-300">Select a user to start chatting</span>
+          <span className="text-lg text-sky-300">
+            Select a user to start chatting 
+          </span>
         </div>
       )}
     </motion.div>

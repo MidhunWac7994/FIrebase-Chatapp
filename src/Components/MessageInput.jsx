@@ -1,22 +1,51 @@
-// MessageInput.jsx
 import React, { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Smile, Send } from 'lucide-react';
 import EmojiPicker from 'emoji-picker-react';
+import { ref, set } from 'firebase/database';
+import { realtimeDb } from '../fireBase';
 
-const MessageInput = ({ 
-  message, 
-  setMessage, 
-  activeChat, 
+let typingTimer;
+
+const MessageInput = ({
+  message,
+  setMessage,
+  activeChat,
   sendMessageToConversation,
   showEmojiPicker,
-  setShowEmojiPicker
+  setShowEmojiPicker,
+  user,
+  messageInputRef,
+  loading
 }) => {
-  const messageInputRef = useRef(null);
-
   const onEmojiClick = (emojiObject) => {
     setMessage((prevMessage) => prevMessage + emojiObject.emoji);
     setShowEmojiPicker(false);
+  };
+
+  const handleTyping = () => {
+    if (!activeChat || !user) return;
+
+    const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${user.uid}`);
+    set(typingRef, true);
+
+    clearTimeout(typingTimer);
+    typingTimer = setTimeout(() => {
+      set(typingRef, false);
+    }, 3000); // 3 seconds of inactivity = not typing
+  };
+
+  const handleChange = (e) => {
+    setMessage(e.target.value);
+    handleTyping();
+  };
+
+  const handleSend = () => {
+    sendMessageToConversation();
+    if (activeChat && user) {
+      const typingRef = ref(realtimeDb, `typing/${activeChat.id}/${user.uid}`);
+      set(typingRef, false); // clear typing when sent
+    }
   };
 
   return (
@@ -40,14 +69,14 @@ const MessageInput = ({
             type="text"
             className="flex-1 p-2 bg-transparent text-sky-100 outline-none placeholder-sky-300/50"
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={activeChat ? "Type a message" : "Select a conversation to start"}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessageToConversation()}
+            onChange={handleChange}
+            placeholder={activeChat ? 'Type a message' : 'Select a conversation to start'}
+            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             disabled={!activeChat}
           />
           <motion.div whileHover={{ scale: 1.1, rotate: -10 }} whileTap={{ scale: 0.9, rotate: 0 }}>
             <Send
-              onClick={sendMessageToConversation}
+              onClick={handleSend}
               className={`${message.trim() && activeChat ? 'text-sky-500 hover:text-sky-400' : 'text-gray-600'} cursor-pointer transition-colors`}
               size={24}
             />
