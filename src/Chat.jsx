@@ -209,8 +209,7 @@ const Chat = () => {
         timestamp: new Date(),
         read: false,
       });
-
-      // 更新接收者的未读消息数
+      
       const receiverId = activeChat.id.replace(user.uid, '');
       const receiverDoc = doc(db, 'users', receiverId);
       const receiverSnap = await getDoc(receiverDoc);
@@ -320,7 +319,7 @@ const Chat = () => {
 />
           
           <MessageList 
-            messages={messages}
+            messages={messages}  
             user={user}
             activeChat={activeChat}
             handleMessageClick={handleMessageClick}
